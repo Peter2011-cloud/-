@@ -104,6 +104,32 @@
       line-height: 1.8;
       color: #334155;
     }
+    .chart-wrap {
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      background: #f8fafc;
+      padding: 10px;
+    }
+    #chart {
+      width: 100%;
+      height: 220px;
+      display: block;
+      border-radius: 12px;
+      background: #fff;
+    }
+    .progress {
+      height: 12px;
+      width: 100%;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+    .progress > div {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #2563eb, #22c55e);
+      transition: width .08s linear;
+    }
     .legend-line {
       display: flex;
       align-items: center;
@@ -164,6 +190,16 @@
         </div>
       </div>
 
+      <div class="chart-wrap">
+        <div class="small" style="margin-bottom:8px;">动态曲线：F 从 D 运动到 A 时，DE 长度如何变化</div>
+        <canvas id="chart" width="440" height="220"></canvas>
+      </div>
+
+      <div>
+        <div class="small">过程进度（D → A）</div>
+        <div class="progress"><div id="progressFill"></div></div>
+      </div>
+
       <div class="tip" id="tipBox"></div>
 
       <div class="legend">
@@ -189,6 +225,9 @@
     const resetBtn = document.getElementById('resetBtn');
     const deNowEl = document.getElementById('deNow');
     const tipBox = document.getElementById('tipBox');
+    const progressFill = document.getElementById('progressFill');
+    const chartCanvas = document.getElementById('chart');
+    const chartCtx = chartCanvas.getContext('2d');
 
     const SQRT3 = Math.sqrt(3);
     const side = 6;
@@ -351,6 +390,61 @@
       ctx.restore();
     }
 
+    function drawChart(nowU, nowDE) {
+      const w = chartCanvas.width;
+      const h = chartCanvas.height;
+      const pad = { l: 42, r: 14, t: 14, b: 30 };
+      const minY = 1.45;
+      const maxY = 5.4;
+      const mapCx = (u) => pad.l + u * (w - pad.l - pad.r);
+      const mapCy = (v) => h - pad.b - (v - minY) / (maxY - minY) * (h - pad.t - pad.b);
+
+      chartCtx.clearRect(0, 0, w, h);
+      chartCtx.strokeStyle = '#cbd5e1';
+      chartCtx.lineWidth = 1;
+      chartCtx.beginPath();
+      chartCtx.moveTo(pad.l, pad.t);
+      chartCtx.lineTo(pad.l, h - pad.b);
+      chartCtx.lineTo(w - pad.r, h - pad.b);
+      chartCtx.stroke();
+
+      chartCtx.fillStyle = '#64748b';
+      chartCtx.font = '12px Microsoft YaHei, sans-serif';
+      chartCtx.fillText('DE', 12, pad.t + 8);
+      chartCtx.fillText('D→A', w - 42, h - 8);
+      chartCtx.fillText('1.5', 10, mapCy(1.5) + 4);
+
+      chartCtx.setLineDash([5, 4]);
+      chartCtx.strokeStyle = '#16a34a';
+      chartCtx.beginPath();
+      chartCtx.moveTo(pad.l, mapCy(1.5));
+      chartCtx.lineTo(w - pad.r, mapCy(1.5));
+      chartCtx.stroke();
+      chartCtx.setLineDash([]);
+
+      chartCtx.strokeStyle = '#2563eb';
+      chartCtx.lineWidth = 2.5;
+      chartCtx.beginPath();
+      for (let i = 0; i <= 220; i++) {
+        const u = i / 220;
+        const de = stateFromU(u).DE;
+        const x = mapCx(u);
+        const y = mapCy(de);
+        if (i === 0) chartCtx.moveTo(x, y);
+        else chartCtx.lineTo(x, y);
+      }
+      chartCtx.stroke();
+
+      const px = mapCx(nowU);
+      const py = mapCy(nowDE);
+      chartCtx.fillStyle = '#ef4444';
+      chartCtx.beginPath();
+      chartCtx.arc(px, py, 4.8, 0, Math.PI * 2);
+      chartCtx.fill();
+      chartCtx.font = '12px Microsoft YaHei, sans-serif';
+      chartCtx.fillText(`u=${nowU.toFixed(3)}, DE=${formatNum(nowDE)}`, Math.max(90, px - 60), Math.max(16, py - 10));
+    }
+
     function render() {
       const u = value / 1000;
       const s = stateFromU(u);
@@ -383,6 +477,8 @@
       drawPoint(s.Emin, 'E*', '#16a34a', 10, 24, 6.5);
 
       deNowEl.textContent = formatNum(s.DE);
+      progressFill.style.width = `${(u * 100).toFixed(1)}%`;
+      drawChart(u, s.DE);
       const close = Math.abs(s.DE - 1.5) < 0.02;
       tipBox.innerHTML = `设 <b>DF = t</b>，则这一侧对应的几何关系可化为：<br>
       <b>DE² = t² - 3√3t + 9</b>。<br>
